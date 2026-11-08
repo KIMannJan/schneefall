@@ -14,6 +14,7 @@ app=build/Schneefall.app
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
 cp "$bin/Schneefall" "$app/Contents/MacOS/Schneefall"
+strip -S "$app/Contents/MacOS/Schneefall"   # debug stabs hold absolute build paths (home folder)
 cp Resources/Info.plist "$app/Contents/Info.plist"
 mkdir -p "$app/Contents/Resources"
 cp Resources/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
