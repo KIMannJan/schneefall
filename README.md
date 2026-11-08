@@ -35,7 +35,7 @@ A tiny macOS menu-bar app that makes it snow on your desktop, behind all your wi
 
 ## Install
 
-1. Unzip `Schneefall.zip` and drag `Schneefall.app` into Applications.
+1. Download `Schneefall.zip` from the [latest release](https://github.com/KIMannJan/schneefall/releases/latest), unzip it and drag `Schneefall.app` into Applications.
 2. The app is only ad-hoc signed, not notarized by Apple. So on the **first** launch:
    1. Double-click it and dismiss the warning with "Done".
    2. Open **System Settings → Privacy & Security → "Open Anyway"**.
