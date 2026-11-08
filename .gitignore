@@ -1,0 +1,11 @@
+.build/
+build/
+.swiftpm/
+xcuserdata/
+DerivedData/
+.DS_Store
+.vscode/
+.claude/settings.local.json
+.netrc
+.superpowers/
+docs/superpowers/

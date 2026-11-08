@@ -1,0 +1,63 @@
+SCHNEEFALL – Schnee auf dem Mac-Desktop
+=======================================
+
+Voraussetzung: Mac mit macOS 14 (Sonoma) oder neuer, Apple-Silicon- oder Intel-Mac.
+
+
+INSTALLIEREN (nur beim ersten Mal so umständlich)
+
+1. „Schneefall.app“ in den Ordner „Programme“ ziehen.
+
+2. Schneefall in „Programme“ per Doppelklick öffnen.
+   macOS meldet, dass die App nicht überprüft werden kann. Das liegt nur daran,
+   dass sie nicht aus dem App Store kommt.
+   Auf „Fertig“ klicken, NICHT auf „In den Papierkorb legen“.
+
+3. Systemeinstellungen öffnen → „Datenschutz & Sicherheit“ → ganz nach unten scrollen.
+   Dort steht: „Schneefall wurde blockiert …“.
+   Auf „Trotzdem öffnen“ klicken und mit Passwort oder Touch ID bestätigen.
+
+4. Fertig: Oben rechts in der Menüleiste erscheint eine Schneeflocke ❄︎.
+   Ab jetzt startet Schneefall ganz normal per Doppelklick.
+
+Für Terminal-Nutzer statt Schritt 2 und 3:
+   xattr -dr com.apple.quarantine /Applications/Schneefall.app
+
+
+SO FUNKTIONIERT ES
+
+- Der Schnee fällt hinter deinen Fenstern, direkt auf dem Desktop. Zu sehen ist er
+  nur dort, wo der Desktop frei ist. Sind alle Fenster maximiert, siehst du nichts.
+  Die App pausiert dann von selbst und braucht keinen Strom.
+- Auf den Oberkanten der Fenster und am unteren Bildschirmrand sammelt sich Schnee
+  und taut langsam wieder.
+- Fenster ruckartig ziehen: Der Schnee rutscht ab. Fenster schließen: Der Schnee fällt runter.
+- Ab und an segelt ein Eiskristall mit herunter.
+
+
+MENÜ ❄︎
+
+- Pause / Weiter schneien
+- Stärke: Leicht, Mittel, Stark oder Schneesturm
+- Schnee abtauen: räumt allen Schnee weg
+- Gestapelte Monitore: Schnee nur unten. Für zwei übereinander stehende Bildschirme:
+  Der Schnee fällt bis auf den unteren durch.
+- Neigung folgen (nur MacBooks mit Apple-Chip): Neigst du das MacBook, fällt der Schnee
+  weiter von „oben“, liegender Schnee rutscht ab, auf der Seite kommt er von links/rechts.
+  Wirkt nur, solange kein externer Monitor angeschlossen ist.
+- Beim Login starten: Schneefall startet automatisch mit dem Mac
+- Beenden
+
+
+PROBLEME?
+
+- „Trotzdem öffnen“ fehlt: Erst Schritt 2 einmal ausführen, dann erscheint der Knopf.
+- Keine Schneeflocke in der Menüleiste: Bei MacBooks mit Notch verschwinden Symbole
+  hinter der Kamera, wenn die Menüleiste voll ist. Andere Symbole ausblenden oder
+  das Fenster einer App mit vielen Menüs schließen.
+
+
+DEINSTALLIEREN
+
+„Beim Login starten“ ausschalten (falls an), dann ❄︎ → Beenden
+und Schneefall aus „Programme“ in den Papierkorb legen.
