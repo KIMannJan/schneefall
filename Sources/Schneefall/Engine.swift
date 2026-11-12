@@ -26,9 +26,15 @@ final class Engine: NSObject {
     private let tilt = TiltSensor()
     private var builtInOnly = false   // tilt only makes sense while the MacBook's own display is the only one
     private var lastTiltMotion: CFTimeInterval = -10
+    private var boostAngle = 0.0      // gravity angle at the last tilt boost to 60 fps
 
     /// Let gravity follow how the MacBook is held (accelerometer).
     var followTilt = true { didSet { updateRunning() } }
+
+    /// Menu "Animation": how many frames per second the snow gets.
+    var frameRate = FrameRate.optimized
+    /// The fastest rate every screen can show: 120 with ProMotion, less once a slower display is attached.
+    private(set) var maxFPS = 60
 
     var paused = false {
         didSet {
@@ -70,6 +76,7 @@ final class Engine: NSObject {
             l.add(to: .main, forMode: .common)
             link = l
             fps = 0
+            maxFPS = NSScreen.screens.map(\.maximumFramesPerSecond).min() ?? 60   // one link draws every screen
         }
         updateRunning()
     }
@@ -81,7 +88,7 @@ final class Engine: NSObject {
         if !run { lastTimestamp = 0 }
         let tiltWanted = followTilt && builtInOnly
         if run && tiltWanted { tilt.start() } else { tilt.stop() }   // sensor sleeps when nothing is visible
-        if !tiltWanted { world.gravityAngle = 0 }
+        if !tiltWanted { world.gravityAngle = 0; boostAngle = 0 }
         if visible && desktopCovered {
             if watchTimer == nil {
                 watchTimer = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(watch),
@@ -115,10 +122,12 @@ final class Engine: NSObject {
         lastTimestamp = now
         let dragging = NSEvent.pressedMouseButtons != 0
 
-        // Window speeds come from poll times, so take those from one clock (the watch
-        // timer uses it too), not from the display link's vsync timestamp.
+        // Window speeds come from poll times, so take those from one clock (the watch timer uses it
+        // too), not from the display link's vsync timestamp. While windows move, poll every frame but
+        // at most ~60×/s: at 120 fps a window's bounds need not change every frame, and a poll that
+        // sees no motion reads as a sudden stop that shakes caps loose.
         let wall = CACurrentMediaTime()
-        if dragging || wall - lastMotion < 0.5 || wall - lastPoll >= 0.2 {
+        if (dragging || wall - lastMotion < 0.5) && wall - lastPoll >= 0.75 / 60 || wall - lastPoll >= 0.2 {
             pollWindows(now: wall, dragging: dragging)
             if desktopCovered { return }
         }
@@ -126,11 +135,17 @@ final class Engine: NSObject {
         // Only real changes: sensor noise would otherwise re-settle every resting surface.
         if followTilt && builtInOnly, let angle = tilt.screenAngle,
            abs(remainder(angle - world.gravityAngle, 2 * .pi)) > 0.005 {
-            lastTiltMotion = now
+            // 60 fps only for a real tilt of 2° or more: a MacBook on a lap wobbles by less all the time
+            if abs(remainder(angle - boostAngle, 2 * .pi)) > 0.035 {
+                lastTiltMotion = now
+                boostAngle = angle
+            }
             world.gravityAngle = angle
         }
 
-        let step = fps < 60 ? 2 * Tuning.step : Tuning.step   // calm 30-fps frames: one coarser step
+        // One step per frame at the rate the link really delivers: 1/30, 1/60, 1/120 s, or e.g. 1/48
+        // on a 144-Hz display asked for 60. Steps sized to the request would judder there.
+        let step = min(max(link.targetTimestamp - link.timestamp, 1.0 / 240), 1.0 / 30)
         accumulator = min(accumulator + frameDt, step * Double(Tuning.maxSubsteps))
         while accumulator >= step {
             world.step(dt: step)
@@ -146,13 +161,15 @@ final class Engine: NSObject {
             lastPowerCheck = now
             onAC = Self.onACPower()
         }
-        // 60 fps on battery too while something big moves: a drag, falling chunks (not the
-        // small spills that trickle off full caps all the time), a tilting MacBook
-        let moving = dragging || world.clumps.contains { $0.radius > 2.5 } || now - lastTiltMotion < 1
-        let wanted: Float = (onAC && !ProcessInfo.processInfo.isLowPowerModeEnabled) || moving ? 60 : 30
+        // Optimiert runs at 60 fps on battery too while something big moves: a window (a held mouse
+        // button alone is not enough, most presses move none), falling chunks (not the small spills
+        // that trickle off full caps all the time), a tilting MacBook
+        let moving = wall - lastMotion < 0.5 || world.clumps.contains { $0.radius > 2.5 } || now - lastTiltMotion < 1
+        let wanted = Float(frameRate.fps(screenMax: maxFPS, onAC: onAC,
+                                         lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled, moving: moving))
         if wanted != fps {
             fps = wanted
-            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: wanted)
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: max(60, wanted), preferred: wanted)
         }
     }
 

@@ -39,6 +39,10 @@ MENÜ ❄︎
 
 - Pause / Weiter schneien
 - Stärke: Leicht, Mittel, Stark oder Schneesturm
+- Animation: wie flüssig der Schnee fällt. Optimiert (Standard): am Netz 60 Bilder pro
+  Sekunde, auf Akku 30, beim Fensterziehen kurz 60. Flüssig: immer 60. Maximal: so viele,
+  wie das Display schafft (120 beim MacBook Pro). Erscheint nur, wenn alle angeschlossenen
+  Bildschirme mehr als 60 Hz schaffen. Mehr Bilder kosten deutlich mehr Akku.
 - Schnee abtauen: räumt allen Schnee weg
 - Gestapelte Monitore: Schnee nur unten. Für zwei übereinander stehende Bildschirme:
   Der Schnee fällt bis auf den unteren durch.

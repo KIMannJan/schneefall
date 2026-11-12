@@ -39,3 +39,19 @@ public enum Tuning {
     public static let maxSubsteps = 4
     public static let minPollDt = 1.0 / 240                            // floor for window-poll dt
 }
+
+/// How many frames per second the snow gets: the menu "Animation". `optimized` is the
+/// default: 60 on power, 30 on battery or in Low Power Mode, 60 while something big moves.
+public enum FrameRate: Int, CaseIterable {
+    case maximal, smooth, optimized
+
+    /// `screenMax`: what the display can do (120 with ProMotion). `moving`: a window drag,
+    /// falling chunks or a tilting MacBook.
+    public func fps(screenMax: Int, onAC: Bool, lowPower: Bool, moving: Bool) -> Int {
+        switch self {
+        case .maximal: return max(60, screenMax)
+        case .smooth: return 60
+        case .optimized: return (onAC && !lowPower) || moving ? 60 : 30
+        }
+    }
+}

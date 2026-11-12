@@ -52,6 +52,7 @@ The app needs no special permissions, neither Screen Recording nor Accessibility
 |---|---|
 | Pause / Weiter schneien | Pause hides the snow and stops everything, and the scene is kept. Weiter schneien resumes. |
 | Stärke ▸ Leicht · Mittel · Stark · Schneesturm | Strength: Light, Medium, Strong, Snowstorm. The choice is remembered. |
+| Animation ▸ Maximal · Flüssig · Optimiert | How smoothly the snow moves. Maximal: the display's top rate, 120 fps on ProMotion (only offered while every attached display exceeds 60 Hz). Flüssig (smooth): always 60 fps. Optimiert (optimized, the default): 60 fps on power, 30 on battery or in Low Power Mode, 60 while something big moves. The snow keeps the same pace at every setting. The choice is remembered. |
 | Schnee abtauen | Melt everything: clears all lying and falling snow. |
 | Gestapelte Monitore: Schnee nur unten | Stacked monitors: the upper monitor gets no ground, so snow falls through. |
 | Neigung folgen | Follow tilt: gravity follows the accelerometer. Only shown if the sensor exists. |
@@ -110,7 +111,8 @@ Sources/
   - Turning past a quarter drops everything lying toward the new "down".
 - **Frugality.**
   - The app sleeps when nothing is visible. It needs its own coverage test, because rounded window corners keep macOS from ever reporting the overlay as hidden.
-  - It runs at 30 fps on battery and only goes up to 60 fps for big motion.
+  - By default (Animation ▸ Optimiert) it runs at 30 fps on battery and only goes up to 60 fps for big motion.
+  - The simulation steps once per frame, at the interval the display really delivers (1/30, 1/60 or 1/120 s). Slopes relax, caps shed and moving windows are polled at most 60 times a second, so the snow behaves the same at 120 fps.
   - Resting surfaces are neither settled nor re-meshed.
   - It renders at 1 px per point.
 
@@ -126,18 +128,20 @@ Everything lives in `Sources/SnowCore/Tuning.swift`, for example:
 - flake density per strength `flakeDensity`, wind `windScale` and `stormWind`
 - share of ice crystals `crystalShare`
 - tilt behaviour: `slideStart`, `slideSpeed`, `turnThreshold`
+- frame rate per Animation setting: `FrameRate`
 
 ## Resource usage
 
-Measured on an Apple-silicon MacBook Pro, on battery, one display, snow visible:
+Measured on an Apple-silicon MacBook Pro with a 120-Hz display, on battery, one display, snow visible. Percent of one core:
 
-| Strength | CPU (one core) | Memory |
-|---|---|---|
-| Light | ~4–5 % | ~140 MB |
-| Snowstorm | ~7 % | ~140 MB |
-| Desktop covered / full-screen app | ≈ 0 % | – |
+| Frames per second | App, Mittel | App, Schneesturm | Window server, extra |
+|---|---|---|---|
+| 30 (Optimiert on battery) | ~6 % | ~8 % | ~+14 % |
+| 60 (Flüssig, Optimiert on power) | ~10 % | ~12 % | ~+37 % |
+| 120 (Maximal) | ~16 % | ~21 % | ~+39 % |
+| Desktop covered / full-screen app | ≈ 0 % | ≈ 0 % | – |
 
-On top of that, the window server spends about 1–2 % extra.
+The frame rate is by far the biggest lever. Most of the cost is not the simulation but presenting each frame, and more of that lands in macOS's window server than in the app: 60 fps costs about 2.3 times as much in total as 30. Memory: about 140 MB. The numbers vary by up to a factor of 1.5 between runs.
 
 ## Limitations
 

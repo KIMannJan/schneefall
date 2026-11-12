@@ -76,7 +76,9 @@ public struct Pile {
 
     /// `tilt`: gravity's angle from straight down in this frame. Past `slideStart` the
     /// cap creeps downhill as a slab, faster the steeper, and sheds over the low edge.
-    public mutating func step(dt: Double, tilt: Double = 0) -> [Chunk] {
+    /// `shed`: break off what lost its support (World does it at most 60×/s, so chunks
+    /// keep their size at 120 fps instead of crumbling into more, smaller ones).
+    public mutating func step(dt: Double, tilt: Double = 0, shed: Bool = true) -> [Chunk] {
         let creep = Self.creep(tilt: tilt)
         if inContact { vRel += max(-Tuning.friction * dt, min(Tuning.friction * dt, creep - vRel)) }
         rel += vRel * dt
@@ -89,6 +91,7 @@ public struct Pile {
         surface.baseY = top
         vy = max(min(vy, surfaceVY), -Tuning.maxHopSpeed)
         inContact = true
+        guard shed else { return [] }
 
         // Shed columns that are no longer supported.
         let cw = Tuning.column
@@ -100,8 +103,8 @@ public struct Pile {
         var right = n
         while right > left && surface.originX + (Double(right - 1) + 0.5) * cw > hi { right -= 1 }
         var shed = surface.chunks(0..<left, vx: surfaceVX + vRel, vy: vy) + surface.chunks(right..<n, vx: surfaceVX + vRel, vy: vy)
-        surface.heights.removeSubrange(right..<n)
-        surface.heights.removeFirst(left)
+        if right < n { surface.heights.removeSubrange(right..<n) }   // only real changes: any write counts as one
+        if left > 0 { surface.heights.removeFirst(left) }             // and keeps the cap from ever resting
         rel += Double(left) * cw
         if surface.heights.isEmpty { rel = spanL - anchor }
         surface.originX = anchor + rel

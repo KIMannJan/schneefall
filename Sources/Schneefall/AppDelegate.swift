@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let stackedItem = NSMenuItem(title: "Gestapelte Monitore: Schnee nur unten", action: #selector(toggleStacked), keyEquivalent: "")
     private let tiltItem = NSMenuItem(title: "Neigung folgen", action: #selector(toggleTilt), keyEquivalent: "")
     private var strengthItems: [NSMenuItem] = []
+    private var frameRateItems: [NSMenuItem] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let device = MTLCreateSystemDefaultDevice(), let renderer = Renderer(device: device) else {
@@ -24,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         world.stackedFallThrough = UserDefaults.standard.bool(forKey: "stackedFallThrough")
         engine = Engine(world: world, renderer: renderer)
         engine.followTilt = UserDefaults.standard.object(forKey: "followTilt") as? Bool ?? true
+        engine.frameRate = FrameRate(rawValue: UserDefaults.standard.object(forKey: "frameRate") as? Int ?? -1) ?? .optimized
         engine.start()
 
         let menu = NSMenu()
@@ -41,6 +43,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let strengthItem = NSMenuItem(title: "Stärke", action: nil, keyEquivalent: "")
         strengthItem.submenu = strengthMenu
         menu.addItem(strengthItem)
+        let frameRateMenu = NSMenu()
+        for (rate, title) in zip(FrameRate.allCases, ["Maximal", "Flüssig", "Optimiert"]) {
+            let item = NSMenuItem(title: title, action: #selector(setFrameRate(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = rate.rawValue
+            frameRateMenu.addItem(item)
+            frameRateItems.append(item)
+        }
+        let frameRateItem = NSMenuItem(title: "Animation", action: nil, keyEquivalent: "")
+        frameRateItem.submenu = frameRateMenu
+        menu.addItem(frameRateItem)
         let clearItem = NSMenuItem(title: "Schnee abtauen", action: #selector(clearSnow), keyEquivalent: "")
         clearItem.target = self
         menu.addItem(clearItem)
@@ -63,6 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         pauseItem.title = engine.paused ? "Weiter schneien" : "Pause"
         for item in strengthItems { item.state = item.tag == world.strength.rawValue ? .on : .off }
+        for item in frameRateItems { item.state = item.tag == engine.frameRate.rawValue ? .on : .off }
+        // Maximal equals Flüssig unless every display exceeds 60 Hz; still shown while chosen
+        frameRateItems[FrameRate.maximal.rawValue].isHidden = engine.maxFPS <= 60 && engine.frameRate != .maximal
         stackedItem.state = world.stackedFallThrough ? .on : .off
         tiltItem.state = engine.followTilt ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -73,6 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func setStrength(_ sender: NSMenuItem) {
         world.strength = Strength(rawValue: sender.tag) ?? .medium
         UserDefaults.standard.set(sender.tag, forKey: "strength")
+    }
+
+    @objc private func setFrameRate(_ sender: NSMenuItem) {
+        engine.frameRate = FrameRate(rawValue: sender.tag) ?? .optimized
+        UserDefaults.standard.set(sender.tag, forKey: "frameRate")
     }
 
     @objc private func clearSnow() { world.clearAll() }

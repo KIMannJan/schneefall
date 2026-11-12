@@ -56,11 +56,30 @@ public final class World {
 
     private var screenInputs: [ScreenInfo] = []   // screen space, as given
     private var screens: [ScreenInfo] = []        // simulation frame
+    /// The screens as plain numbers, for the hot loops.
+    private var bounds: [(minX: Double, maxX: Double, minY: Double, maxY: Double)] = []
     private var spawnEdges: [(lo: Double, hi: Double, y: Double)] = []   // where respawned flakes start
     private var t = 0.0
     private var meltClock = 0.0                   // thaw is applied once per second, not every step
+    private var settleClock = 0.0                 // slopes relax and caps shed at most 60×/s
     private var rng: SplitMix64
-    private var landingSpans: [(id: UInt32, lo: Double, hi: Double)] = []   // pile x-extents, rebuilt each step
+    /// Where a particle can land: one surface's x-extent and the band its snow fills. The band lets
+    /// `land` skip a surface with two comparisons: almost every particle is still in the air above it.
+    private struct Landing {
+        let lo, hi, base: Double
+        var top: Double                 // base minus the highest column
+        let pile: UInt32?               // a window's cap, or
+        let ground: Int                 // the ground with this index
+        init(_ s: Surface, pile: UInt32?, ground: Int) {
+            lo = s.originX
+            hi = s.maxX
+            base = s.baseY
+            top = s.baseY - (s.heights.max() ?? 0)
+            self.pile = pile
+            self.ground = ground
+        }
+    }
+    private var landings: [Landing] = []          // rebuilt each step
 
     public init(seed: UInt64) { rng = SplitMix64(state: seed) }
 
@@ -103,6 +122,7 @@ public final class World {
         }
         grounds = newGrounds
         screens = newScreens
+        bounds = newScreens.map(\.frame).map { (Double($0.minX), Double($0.maxX), Double($0.minY), Double($0.maxY)) }
         if screens.isEmpty { flakes.removeAll(); clumps.removeAll(); return }
         for i in flakes.indices where !onScreen(flakes[i]) { flakes[i] = makeFlake(initial: true) }
         clumps.removeAll { !onScreen($0) }
@@ -221,20 +241,27 @@ public final class World {
         let melting = meltClock >= 1
         let keep = exp(-Tuning.meltRate * meltClock)
         if melting { meltClock = 0 }
+        // Slopes relax and caps shed at most 60×/s (every step up to 60 fps, every other one at 120):
+        // snow flows and breaks off alike at every frame rate.
+        settleClock += dt
+        let settling = settleClock >= Tuning.step * 0.999
+        if settling { settleClock = min(settleClock - Tuning.step, Tuning.step) }
         for id in Array(piles.keys) {
-            addClumps(piles[id]!.step(dt: dt, tilt: tilt))
+            addClumps(piles[id]!.step(dt: dt, tilt: tilt, shed: settling))
             // Level: what trickles off a full cap is redirected snowfall and obeys the caps.
             // Tilted: it is lying snow sliding off, which must never be destroyed.
-            addSpills(piles[id]!.surface.settle(bias: bias), asSnowfall: abs(tilt) < Tuning.slideStart)
+            if settling { addSpills(piles[id]!.surface.settle(bias: bias), asSnowfall: abs(tilt) < Tuning.slideStart) }
             if melting { piles[id]!.surface.melt(keep: keep) }
         }
         let slide = Pile.creep(tilt: tilt) * dt          // ground snow slides as one slab, like the caps
         for i in grounds.indices {
             grounds[i].slide(by: slide)
-            _ = grounds[i].settle(bias: bias)
+            if settling { _ = grounds[i].settle(bias: bias) }
             if melting { grounds[i].melt(keep: keep) }
         }
-        landingSpans = piles.map { ($0.key, $0.value.surface.originX, $0.value.surface.maxX) }
+        landings.removeAll(keepingCapacity: true)
+        for (id, pile) in piles { landings.append(Landing(pile.surface, pile: id, ground: -1)) }
+        for (i, ground) in grounds.enumerated() { landings.append(Landing(ground, pile: nil, ground: i)) }
         moveFlakes(dt)
         moveClumps(dt)
     }
@@ -320,10 +347,8 @@ public final class World {
     }
 
     private func covered(_ x: Double, _ y: Double) -> Bool {
-        screens.contains { s in
-            let f = s.frame
-            return x >= Double(f.minX) && x < Double(f.maxX) && y >= Double(f.minY) - 100 && y <= Double(f.maxY) + 60
-        }
+        for b in bounds where x >= b.minX && x < b.maxX && y >= b.minY - 100 && y <= b.maxY + 60 { return true }
+        return false
     }
 
     /// Off every screen (e.g. fell past a monitor that keeps no ground).
@@ -337,19 +362,24 @@ public final class World {
     private func land(_ p: Particle, from y0: Double, width: Double) -> Bool {
         let b0 = y0 + p.radius / 2, b1 = p.y + p.radius / 2
         var best = Double.infinity
-        var bestPile: UInt32?
-        var bestGround: Int?
-        for span in landingSpans where p.x >= span.lo && p.x < span.hi {
-            let s = piles[span.id]!.surface
-            if let l = s.lineY(at: p.x), b1 >= l, b0 <= s.baseY, l < best { best = l; bestPile = span.id; bestGround = nil }
+        var hit = -1
+        for (k, s) in landings.enumerated() where p.x >= s.lo && p.x < s.hi && b1 >= s.top && b0 <= s.base {
+            let line: Double?           // only now look at the real snow line
+            if let id = s.pile { line = piles[id]!.surface.lineY(at: p.x) } else { line = grounds[s.ground].lineY(at: p.x) }
+            if let l = line, b1 >= l, l < best { best = l; hit = k }
         }
-        for i in grounds.indices {
-            if let l = grounds[i].lineY(at: p.x), b1 >= l, b0 <= grounds[i].baseY, l < best { best = l; bestPile = nil; bestGround = i }
-        }
+        guard hit >= 0 else { return false }
         let capped = !p.isClump || p.fromSpill            // only snow that merely moves ignores the caps
-        if let id = bestPile { piles[id]!.surface.deposit(area: p.area, x: p.x, width: width, capped: capped); return true }
-        if let i = bestGround { grounds[i].deposit(area: p.area, x: p.x, width: width, capped: capped); return true }
-        return false
+        // The deposit may raise the band; refresh it, because later particles in this step must see the new snow.
+        let s = landings[hit]
+        if let id = s.pile {
+            piles[id]!.surface.deposit(area: p.area, x: p.x, width: width, capped: capped)
+            landings[hit].top = s.base - (piles[id]!.surface.heights.max() ?? 0)
+        } else {
+            grounds[s.ground].deposit(area: p.area, x: p.x, width: width, capped: capped)
+            landings[hit].top = s.base - (grounds[s.ground].heights.max() ?? 0)
+        }
+        return true
     }
 
     // MARK: Orientation

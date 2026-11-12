@@ -526,3 +526,87 @@ func run(_ w: World, seconds: Double) { for _ in 0..<Int(seconds / Tuning.step) 
     for _ in 0..<60 { ok.add(x: 1, y: 0, z: 0) }          // turned onto its right side
     #expect(abs(ok.screenAngle! - .pi / 2) < 0.1)
 }
+
+// MARK: - Frame rate (menu "Animation")
+
+@Test func frameRateFollowsTheChosenSetting() {          // Maximal / Flüssig / Optimiert
+    // Maximal: whatever the display can do, even on battery in Low Power Mode
+    #expect(FrameRate.maximal.fps(screenMax: 120, onAC: false, lowPower: true, moving: false) == 120)
+    #expect(FrameRate.maximal.fps(screenMax: 60, onAC: true, lowPower: false, moving: false) == 60)
+    #expect(FrameRate.maximal.fps(screenMax: 0, onAC: true, lowPower: false, moving: false) == 60)    // display reports nothing
+    // Flüssig: always 60
+    #expect(FrameRate.smooth.fps(screenMax: 120, onAC: false, lowPower: true, moving: false) == 60)
+    // Optimiert (default): 60 on power, 30 on battery or in Low Power Mode, 60 while something big moves
+    #expect(FrameRate.optimized.fps(screenMax: 120, onAC: true, lowPower: false, moving: false) == 60)
+    #expect(FrameRate.optimized.fps(screenMax: 120, onAC: false, lowPower: false, moving: false) == 30)
+    #expect(FrameRate.optimized.fps(screenMax: 120, onAC: true, lowPower: true, moving: false) == 30)
+    #expect(FrameRate.optimized.fps(screenMax: 120, onAC: false, lowPower: true, moving: true) == 60)
+}
+
+@Test func snowFlowsNoFasterAt120FpsThanAt60() {           // Maximal steps 120×/s; slopes must not relax twice as fast
+    func pileAfter(_ steps: Int, of dt: Double) -> [Double] {
+        let w = World(seed: 1)                                // no screens: no flakes, nothing lands
+        w.updateWindows([WindowInfo(id: 1, frame: win)], existing: nil, dt: dt, dragging: false)
+        w.piles[1]!.surface.heights[w.piles[1]!.surface.heights.count / 2] = 20   // far steeper than repose
+        for _ in 0..<steps { w.step(dt: dt) }
+        return w.piles[1]!.surface.heights
+    }
+    var ref = Pile(frame: win).surface                        // 50 ms at 60 fps = three settling passes
+    ref.heights[ref.heights.count / 2] = 20
+    for _ in 0..<3 { _ = ref.settle() }
+    #expect(ref.heights[ref.heights.count / 2] < 20)          // the spike does flow
+    #expect(pileAfter(3, of: 1.0 / 60) == ref.heights)
+    #expect(pileAfter(6, of: 1.0 / 120) == ref.heights)
+}
+
+@Test func restingCapIsNotTouchedAgain() {                  // a cap at rest costs nothing: no re-settle, no re-upload
+    let w = World(seed: 1)                                    // no screens: nothing lands
+    w.updateWindows([WindowInfo(id: 1, frame: win)], existing: nil, dt: Tuning.step, dragging: false)
+    w.piles[1]!.surface.heights = w.piles[1]!.surface.heights.map { _ in 1 }   // flat, nothing to flow
+    for _ in 0..<5 { w.step(dt: Tuning.step) }
+    let r = w.piles[1]!.surface.revision
+    for _ in 0..<30 { w.step(dt: Tuning.step) }               // half a second: no thaw yet either
+    #expect(w.piles[1]!.surface.revision == r)
+}
+
+@Test func slippingCapBreaksIntoTheSameChunksAt120Fps() {   // not more, smaller ones: same heft at every setting
+    func clumpsAfterHalfASecond(at dt: Double) -> [Particle] {
+        let w = world(); w.spawnEnabled = false; w.flakes.removeAll()
+        w.updateWindows([WindowInfo(id: 1, frame: win)], existing: nil, dt: dt, dragging: false)
+        w.piles[1]!.surface.heights = w.piles[1]!.surface.heights.map { _ in 10 }
+        w.gravityAngle = 60 * Double.pi / 180                 // the cap slips off to the right at ~200 pt/s
+        for _ in 0..<Int((0.5 / dt).rounded()) { w.step(dt: dt) }
+        return w.clumps                                       // none has landed yet: 400 pt to the ground
+    }
+    let at60 = clumpsAfterHalfASecond(at: 1.0 / 60), at120 = clumpsAfterHalfASecond(at: 1.0 / 120)
+    #expect(at60.count > 5)                                   // it does break off
+    #expect(abs(at120.count - at60.count) <= 1)
+}
+
+@Test func snowLandingOnFreshSnowLandsInTheSameStep() {     // the landing shortcut must see snow that fell this very step
+    let w = world(); w.spawnEnabled = false; w.flakes.removeAll()
+    w.updateWindows([WindowInfo(id: 1, frame: win)], existing: nil, dt: Tuning.step, dragging: false)
+    w.piles[1]!.surface.heights = w.piles[1]!.surface.heights.map { _ in 10 }   // snow line at y = 390
+    // two chunks above the same spot: the first raises the snow there to 20 pt (line at 380) ...
+    w.clumps.append(Particle(x: 500, y: 389.5, vx: 0, vy: 0, radius: 1.6, area: 40, alpha: 1, isClump: true))
+    // ... and the second sits between the old and the new line, so it comes to rest on the fresh snow
+    w.clumps.append(Particle(x: 500, y: 384, vx: 0, vy: 0, radius: 1.6, area: 40, alpha: 1, isClump: true))
+    w.step(dt: Tuning.step)
+    #expect(w.clumps.isEmpty)
+    #expect(w.piles[1]!.surface.lineY(at: 500)! == 370)      // 10 + 10 + 10 pt of snow
+}
+
+@Test func groundSnowFlowsNoFasterAt120FpsThanAt60() {       // the same promise for the ground as for the caps
+    func groundAfter(_ steps: Int, of dt: Double) -> [Double] {
+        let w = world(); w.spawnEnabled = false; w.flakes.removeAll()
+        w.grounds[0].heights[250] = 20                        // a spike far steeper than repose
+        for _ in 0..<steps { w.step(dt: dt) }
+        return w.grounds[0].heights
+    }
+    var ref = world().grounds[0]                              // 50 ms at 60 fps = three settling passes
+    ref.heights[250] = 20
+    for _ in 0..<3 { _ = ref.settle() }
+    #expect(ref.heights[250] < 20)                            // the spike does flow
+    #expect(groundAfter(3, of: 1.0 / 60) == ref.heights)
+    #expect(groundAfter(6, of: 1.0 / 120) == ref.heights)
+}
