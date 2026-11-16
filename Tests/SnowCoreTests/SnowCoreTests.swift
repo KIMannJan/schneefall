@@ -88,6 +88,30 @@ func drive(_ p: inout Pile, _ frames: [CGRect], dragging: Bool = true) -> [Chunk
     #expect(p.surface.originX == 1100 + Tuning.cornerInset && p.surface.baseY == 700)
 }
 
+@Test func releaseMidDragKeepsMomentum() {           // let go while the window still moves: it stops dead, the cap slides on
+    var p = flatPile(10)
+    var x = 0.0, frames: [CGRect] = []
+    for i in 1...45 {                                  // up to 600 pt/s at 1200 pt/s² < μg, then steady
+        x += 600 * min(Double(i) / 30, 1) * Tuning.step
+        frames.append(win.offsetBy(dx: x, dy: 0))
+    }
+    var shed = drive(&p, frames)
+    #expect(shed.isEmpty)
+    let stop = win.offsetBy(dx: x + 10, dy: 0)
+    shed += drive(&p, [stop], dragging: false)           // the button came up during this poll
+    shed += drive(&p, Array(repeating: stop, count: 60), dragging: false)
+    #expect(!shed.isEmpty)
+    #expect(shed.allSatisfy { $0.x > Double(stop.maxX) - Tuning.cornerInset })   // over the leading edge
+}
+
+@Test func clickThenSystemMoveIsRigid() {             // a click that moves nothing, then e.g. a zoom animation
+    var p = flatPile(10)
+    _ = drive(&p, [win])                                 // button down, window still
+    let shed = drive(&p, [win.offsetBy(dx: 800, dy: 300)], dragging: false)
+    #expect(shed.isEmpty)
+    #expect(p.surface.originX == 1100 + Tuning.cornerInset && p.surface.baseY == 700)
+}
+
 @Test func fastDropLiftsThenLands() {                  // 2400 pt/s downward
     var p = flatPile(10)
     let frames = (1...5).map { win.offsetBy(dx: 0, dy: Double($0) * 40) }

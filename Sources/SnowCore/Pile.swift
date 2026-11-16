@@ -33,6 +33,7 @@ public struct Pile {
     var vRel = 0.0                         // pile velocity relative to the surface
     var surfaceVX = 0.0, surfaceVY = 0.0
     var vy = 0.0                           // absolute vertical velocity of the pile
+    var wasDragged = false                 // this mouse press has moved the window: a drag, not a click
 
     public init(frame: CGRect) {
         self.frame = frame
@@ -58,7 +59,13 @@ public struct Pile {
         let dt = max(dt, Tuning.minPollDt)
         let tx = Motion.translation(from: frame, to: new)
         let dy = Double(new.minY - frame.minY)
-        if !dragging && (tx != 0 || dy != 0) {
+        let moved = tx != 0 || dy != 0
+        // Let go mid-drag: the button came up during this poll's interval, so the motion since the
+        // last poll was still the drag. A click that moved nothing (double-click zoom, a tiling menu)
+        // does not count: the system animation after it stays rigid.
+        let dragged = dragging || wasDragged
+        wasDragged = dragging && (moved || wasDragged)
+        if !dragged && moved {
             // Moved by the system (Show Desktop, keyboard tiling): carry rigidly.
             anchor += tx
             surface.baseY = Double(new.minY)
