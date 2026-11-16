@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         strengthItem.submenu = strengthMenu
         menu.addItem(strengthItem)
         let frameRateMenu = NSMenu()
-        for (rate, title) in zip(FrameRate.allCases, ["Maximal", "Flüssig", "Optimiert"]) {
+        for (rate, title) in zip(FrameRate.allCases, ["Maximal", "Flüssig", "Automatisch"]) {
             let item = NSMenuItem(title: title, action: #selector(setFrameRate(_:)), keyEquivalent: "")
             item.target = self
             item.tag = rate.rawValue
@@ -79,6 +79,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for item in frameRateItems { item.state = item.tag == engine.frameRate.rawValue ? .on : .off }
         // Maximal equals Flüssig unless every display exceeds 60 Hz; still shown while chosen
         frameRateItems[FrameRate.maximal.rawValue].isHidden = engine.maxFPS <= 60 && engine.frameRate != .maximal
+        if #available(macOS 14.4, *) {   // grey line under each name; macOS 14.0–14.3 show the names only
+            let top = FrameRate.maximal.fps(screenMax: engine.maxFPS, onAC: true, lowPower: false, moving: false)
+            for (item, subtitle) in zip(frameRateItems, ["\(top) Bilder/s · am flüssigsten", "immer 60 Bilder/s",
+                                                         "Akku 30 Bilder/s, Netz 60 · spart Akku"]) {
+                item.subtitle = subtitle
+            }
+        }
         stackedItem.state = world.stackedFallThrough ? .on : .off
         tiltItem.state = engine.followTilt ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off

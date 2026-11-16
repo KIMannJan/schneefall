@@ -52,7 +52,7 @@ The app needs no special permissions, neither Screen Recording nor Accessibility
 |---|---|
 | Pause / Weiter schneien | Pause hides the snow and stops everything, and the scene is kept. Weiter schneien resumes. |
 | Stärke ▸ Leicht · Mittel · Stark · Schneesturm | Strength: Light, Medium, Strong, Snowstorm. The choice is remembered. |
-| Animation ▸ Maximal · Flüssig · Optimiert | How smoothly the snow moves. Maximal: the display's top rate, 120 fps on ProMotion (only offered while every attached display exceeds 60 Hz). Flüssig (smooth): always 60 fps. Optimiert (optimized, the default): 60 fps on power, 30 on battery or in Low Power Mode, 60 while something big moves. The snow keeps the same pace at every setting. The choice is remembered. |
+| Animation ▸ Maximal · Flüssig · Automatisch | How smoothly the snow moves. A grey line under each entry gives its frame rate. Maximal: the display's top rate, 120 fps on ProMotion (only offered while every attached display exceeds 60 Hz). Flüssig (smooth): always 60 fps. Automatisch (automatic, the default): 60 fps on power, 30 on battery or in Low Power Mode, 60 while something big moves. The snow keeps the same pace at every setting. The choice is remembered. |
 | Schnee abtauen | Melt everything: clears all lying and falling snow. |
 | Gestapelte Monitore: Schnee nur unten | Stacked monitors: the upper monitor gets no ground, so snow falls through. |
 | Neigung folgen | Follow tilt: gravity follows the accelerometer. Only shown if the sensor exists. |
@@ -111,7 +111,7 @@ Sources/
   - Turning past a quarter drops everything lying toward the new "down".
 - **Frugality.**
   - The app sleeps when nothing is visible. It needs its own coverage test, because rounded window corners keep macOS from ever reporting the overlay as hidden.
-  - By default (Animation ▸ Optimiert) it runs at 30 fps on battery and only goes up to 60 fps for big motion.
+  - By default (Animation ▸ Automatisch) it runs at 30 fps on battery and only goes up to 60 fps for big motion.
   - The simulation steps once per frame, at the interval the display really delivers (1/30, 1/60 or 1/120 s). Slopes relax, caps shed and moving windows are polled at most 60 times a second, so the snow behaves the same at 120 fps.
   - Resting surfaces are neither settled nor re-meshed.
   - It renders at 1 px per point.
@@ -136,8 +136,8 @@ Measured on an Apple-silicon MacBook Pro with a 120-Hz display, on battery, one 
 
 | Frames per second | App, Mittel | App, Schneesturm | Window server, extra |
 |---|---|---|---|
-| 30 (Optimiert on battery) | ~6 % | ~8 % | ~+14 % |
-| 60 (Flüssig, Optimiert on power) | ~10 % | ~12 % | ~+37 % |
+| 30 (Automatisch on battery) | ~6 % | ~8 % | ~+14 % |
+| 60 (Flüssig, Automatisch on power) | ~10 % | ~12 % | ~+37 % |
 | 120 (Maximal) | ~16 % | ~21 % | ~+39 % |
 | Desktop covered / full-screen app | ≈ 0 % | ≈ 0 % | – |
 

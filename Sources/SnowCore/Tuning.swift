@@ -40,8 +40,9 @@ public enum Tuning {
     public static let minPollDt = 1.0 / 240                            // floor for window-poll dt
 }
 
-/// How many frames per second the snow gets: the menu "Animation". `optimized` is the
-/// default: 60 on power, 30 on battery or in Low Power Mode, 60 while something big moves.
+/// How many frames per second the snow gets: the menu "Animation". `optimized` (in the menu:
+/// Automatisch) is the default: 60 on power, 30 on battery or in Low Power Mode, 60 while
+/// something big moves.
 public enum FrameRate: Int, CaseIterable {
     case maximal, smooth, optimized
 

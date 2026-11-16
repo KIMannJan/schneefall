@@ -161,7 +161,7 @@ final class Engine: NSObject {
             lastPowerCheck = now
             onAC = Self.onACPower()
         }
-        // Optimiert runs at 60 fps on battery too while something big moves: a window (a held mouse
+        // Automatisch runs at 60 fps on battery too while something big moves: a window (a held mouse
         // button alone is not enough, most presses move none), falling chunks (not the small spills
         // that trickle off full caps all the time), a tilting MacBook
         let moving = wall - lastMotion < 0.5 || world.clumps.contains { $0.radius > 2.5 } || now - lastTiltMotion < 1
